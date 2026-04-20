@@ -116,9 +116,8 @@ _itos:
 
     ; do while for x+y=0
     test rax, rax
-    jz .end
+    jnz .loop
 
-    jmp .loop
   .end:
     test r11, r11 
     jz .realEnd
