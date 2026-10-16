@@ -48,26 +48,22 @@ _getOperation:
 	mov r8b, [rsi]
 
 	cmp r8b, '+'
-	jne .sub
-	mov eax, _add
-	ret
+	mov rax, _add
+	je  .found
 
-.sub:
 	cmp r8b, '-'
-	jne .mul
-	mov eax, _sub
-	ret
+	mov rax, _sub
+	je  .found
 
-.mul:
 	cmp r8b, '*'
-	jne .div
-	mov eax, _mul
-	ret
+	mov rax, _mul
+	je  .found
 
-.div:
 	cmp r8b, '/'
 	jne _getOperation
-	mov eax, _div
+	mov rax, _div
+
+.found:
 	ret
 
 	; polls the user w stdin
