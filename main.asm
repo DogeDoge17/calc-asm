@@ -1,131 +1,213 @@
-section .data
-    readMessage db "n: "
-    %define len 3
+section          .data
+readMessage      db "n: "
+operationMessage db "o: "
+%define          len 3
 
 section .text
 
 global _start
 
 _start:
-    sub rsp, 64 ; stdin buffer
-    lea r12, [rsp]
+	;   stdin buffer
+	sub rsp, 64
+	mov r12, rsp
 
-    ; poll the number from the usr
-    call _getNumber
-    mov r13, rax
-    call _getNumber
+	;    ask for the first number
+	call _getNumber
+	mov  r13, rax
 
-    ; ADD THE NUMERB
-    add rax, r13
+	;    ask for the operation
+	call _getOperation
+	mov  r14, rax
 
-    ; convert ts to a string
-    lea rdi, [rsp + 63]
-    call _itos
+.secondNumber:
+	;    ask for the second number
+	call _getNumber
 
-    ; print tha numba
-    mov rax, 1
-    mov rdi, 1
-    syscall
+	;    calculate THE NUMERB
+	call r14
 
-    mov eax, 1          ; sys_exit
-    xor rbx, rbx
-    int 0x80
+	;    convert ts to a string
+	lea  rdi, [rsp + 63]
+	call _itos
 
-; polls the user w stdin
+	;   print tha numba
+	mov rax, 1
+	mov rdi, 1
+	syscall
+
+	mov eax, 1; sys_exit
+	xor ebx, ebx
+	int 0x80
+
+_getOperation:
+	mov  r8, operationMessage; pointer to message
+	mov  r9, 2; max bytes to read
+	call _input
+
+	mov r8b, [rsi]
+
+	cmp r8b, '+'
+	jne .sub
+	mov eax, _add
+	ret
+
+.sub:
+	cmp r8b, '-'
+	jne .mul
+	mov eax, _sub
+	ret
+
+.mul:
+	cmp r8b, '*'
+	jne .div
+	mov eax, _mul
+	ret
+
+.div:
+	cmp r8b, '/'
+	jne _getOperation
+	mov eax, _div
+	ret
+
+	; polls the user w stdin
+
 _getNumber:
-    ; print the prompt
-    mov eax, 4           ; sys_write
-    mov ebx, 1           ; file descriptor (stdout)
-    mov ecx, readMessage ; pointer to message
-    mov edx, len         ; message length
-    int 0x80             ; call kernel        
 
-    ; read from stdin
-    mov rax, 0              ; sys_read
-    mov rdi, 0              ; stdin file descriptor
-    mov rsi, r12         ; address to store data
-    mov rdx, 64             ; max bytes to read
-    syscall
+	mov  r8, readMessage; pointer to message
+	mov  r9, 64; max bytes to read
+	call _input
 
-    mov rbx, rax
-    mov rsi, r12
-    call _readNum
+	mov  rbx, rax
+	mov  rsi, r12
+	call _readNum
 
-    ret
+	ret
 
-; rsi -- input string
-; rbx -- string length
+	; rsi -- input string
+	; rbx -- string length
+
 _readNum:
-    xor rax, rax
-    xor rcx, rcx
-    xor rdx, rdx
+	xor rax, rax
+	xor rcx, rcx
+	xor rdx, rdx
 
-  .loop:
-    cmp rcx, rbx
-    je .end
+.loop:
+	cmp rcx, rbx
+	je  .end
 
-    mov dl, [rsi+rcx] ; the ascii number 
+	mov dl, [rsi+rcx]; the ascii number
 
-    ; make sure its a numebr
-    cmp dl, '0'
-    jb .continue
-    cmp dl, '9'
-    ja .continue
+	;   make sure its a numebr
+	cmp dl, '0'
+	jb  .continue
+	cmp dl, '9'
+	ja  .continue
 
-    sub dl, '0'
-    imul rax, 10
-    add rax, rdx
+	sub  dl, '0'
+	imul rax, 10
+	add  rax, rdx
 
-  .continue:
-    inc rcx
-    jmp .loop
+.continue:
+	inc rcx
+	jmp .loop
 
-  .end:
-    cmp byte [rsi], '-'
-    jne .realend
-    neg rax
-  .realend: 
-    xor rdx, rdx
-    ret
+.end:
+	cmp byte [rsi], '-'
+	jne .realend
+	neg rax
 
-; rdi: the buffer to write to
-; rax: the integer to convert to
+.realend:
+	xor rdx, rdx
+	ret
+
+	; r8d: the print prompt
+	; r9: the amount to read back
+
+_input:
+	;   print the prompt
+	mov eax, 4; sys_write
+	mov ebx, 1; file descriptor (stdout)
+	mov rcx, r8; pointer to message
+	mov edx, len; message length
+	int 0x80; call kernel
+
+	;   read from stdin
+	mov rax, 0; sys_read
+	mov rdi, 0; stdin file descriptor
+	mov rsi, r12; address to store data
+	mov rdx, r9; max bytes to read
+	syscall
+
+	ret
+
+	; rdi: the buffer to write to
+	; rax: the integer to convert
+
 _itos:
-    mov rcx, 2
-    mov r10, 10
-    xor r11, r11
+	mov rcx, 2
+	mov r10, 10
+	xor r11, r11
 
-    mov byte [rdi], 10 ; append newline
-    dec rdi
+	mov byte [rdi], 10; append newline
+	dec rdi
 
-    cmp rax, 0
-    jge .loop
-    neg rax
-    mov r11, 1
+	cmp rax, 0
+	jge .loop
+	neg rax
+	mov r11, 1
 
-  .loop:
-    ; prepare new digit 
-    xor rdx, rdx
-    idiv r10
-    add rdx, '0'
+.loop:
+	;    prepare new digit
+	xor  rdx, rdx
+	idiv r10
+	add  rdx, '0'
 
-    mov [rdi], dl
-    
-    dec rdi
-    inc rcx
+	mov [rdi], dl
 
-    ; do while for x+y=0
-    test rax, rax
-    jnz .loop
+	dec rdi
+	inc rcx
 
-  .end:
-    test r11, r11 
-    jz .realEnd
-    mov byte [rdi], '-'
-    dec rdi
-    inc rcx
-  .realEnd: 
+	;    do while for x+y=0
+	test rax, rax
+	jnz  .loop
 
-    mov rsi, rdi
-    mov rdx, rcx
-    ret
+.end:
+	test r11, r11
+	jz   .realEnd
+	mov  byte [rdi], '-'
+	dec  rdi
+	inc  rcx
+
+.realEnd:
+
+	mov rsi, rdi
+	mov rdx, rcx
+	ret
+
+_mul:
+	imul r13
+
+	ret
+
+_div:
+	test rax, rax
+	jnz  .ok
+	pop  rax
+	jmp  _start.secondNumber
+
+.ok:
+	xchg r13, rax
+	cqo
+	idiv r13
+
+	ret
+
+_add:
+	add rax, r13
+	ret
+
+_sub:
+	xchg r13, rax
+	sub  rax, r13
+	ret
